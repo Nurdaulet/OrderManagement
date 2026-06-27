@@ -17,7 +17,7 @@ internal sealed class CsvGoogleSheetLogger(
     ILogger<CsvGoogleSheetLogger> logger) : IGoogleSheetLogger
 {
     private const string Header =
-        "StartedAt,FinishedAt,Status,DocumentsReceived,DocumentsCreated,DocumentsUpdated,DocumentsSkipped,ErrorMessage";
+        "RunId,StartedAt,FinishedAt,Status,DocumentsReceived,DocumentsCreated,DocumentsUpdated,DocumentsSkipped,ErrorMessage";
 
     private const string RowTerminator = "\r\n";
 
@@ -58,6 +58,7 @@ internal sealed class CsvGoogleSheetLogger(
     }
 
     private static string FormatRow(SyncLog log) => string.Join(',',
+        Escape(log.Id.ToString()),
         Escape(log.StartedAt.ToString("O", CultureInfo.InvariantCulture)),
         Escape(log.FinishedAt?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty),
         Escape(log.Status.ToString()),

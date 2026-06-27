@@ -1,10 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OrderManagement.Application.Abstractions;
+using OrderManagement.Application.Common.Exceptions;
 using OrderManagement.Application.Common.Models;
 
 namespace OrderManagement.Application.Features.Synchronization;
 
-public sealed class SyncLogService(IApplicationDbContext context) : ISyncLogService
+public sealed class SyncLogService(
+    IApplicationDbContext context,
+    IGoogleSheetLogger googleSheetLogger,
+    ILogger<SyncLogService> logger) : ISyncLogService
 {
     public async Task<PagedResult<SyncLogDto>> GetLogsAsync(
         int page,
@@ -33,5 +38,27 @@ public sealed class SyncLogService(IApplicationDbContext context) : ISyncLogServ
             .ToListAsync(cancellationToken);
 
         return new PagedResult<SyncLogDto>(items, page, pageSize, totalCount);
+    }
+
+    public async Task<GoogleSheetSendResult> ResendLatestToGoogleSheetAsync(CancellationToken cancellationToken = default)
+    {
+        // Read-only (AsNoTracking): the SyncLog itself is never modified by a re-send.
+        var latest = await context.SyncLogs
+            .AsNoTracking()
+            .OrderByDescending(l => l.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("SyncLog", "latest");
+
+        try
+        {
+            await googleSheetLogger.LogAsync(latest, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to re-send sync log {RunId} to the Google Sheet log", latest.Id);
+            throw;
+        }
+
+        return new GoogleSheetSendResult(latest.Id, "Sent");
     }
 }

@@ -32,12 +32,11 @@ Accept: application/json
 GET {{host}}/api/sync/logs?page=0&pageSize=500
 Accept: application/json
 
+### Re-send the latest sync log to the Google Sheet logger
+### 404 ProblemDetails if no sync has run yet; 200 { runId, googleSheetStatus } otherwise.
+POST {{host}}/api/sync/logs/latest/send-to-google
+Accept: application/json
+
 ### OpenAPI document
 GET {{host}}/swagger/v1/swagger.json
 Accept: application/json
-
-
-### ─────────────────────────────────────────────────────────────────────────
-### Planned (not implemented yet):
-### POST {{host}}/api/sync/logs/latest/send-to-google
-### ─────────────────────────────────────────────────────────────────────────

@@ -9,10 +9,12 @@ namespace OrderManagement.Application.Features.Synchronization;
 /// <param name="DocumentsCreated">Documents created internally.</param>
 /// <param name="DocumentsUpdated">Documents updated internally.</param>
 /// <param name="DocumentsSkipped">Documents skipped (unchanged or with an unknown order).</param>
+/// <param name="GoogleSheetStatus">Whether the run was sent to the Google Sheet log ("Sent"/"Failed").</param>
 public sealed record SyncResult(
     Guid RunId,
     SyncStatus Status,
     int DocumentsReceived,
     int DocumentsCreated,
     int DocumentsUpdated,
-    int DocumentsSkipped);
+    int DocumentsSkipped,
+    string GoogleSheetStatus);

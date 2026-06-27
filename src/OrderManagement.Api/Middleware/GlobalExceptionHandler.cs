@@ -47,7 +47,11 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
         };
 
         httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
 
         return true;
     }

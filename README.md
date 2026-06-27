@@ -3,13 +3,12 @@
 Service for synchronising financial documents (invoices and acts of work) between the internal
 **Order Management** system and an external system, with sync history and a Google Sheets log.
 
-> **Project status — Phase 3: synchronisation + REST API + Google Sheets log.**
-> The solution skeleton, cross-cutting infrastructure, domain model + EF Core mapping, the
-> **document synchronisation service** (mock external JSON source), the **REST endpoints**
-> (sync, order documents, sync history) and the **Google Sheets logger** (CSV mock) are in place.
-> Still outstanding: the `send-to-google` re-send endpoint, error→`SyncLog` handling, and the full
-> business-scenario test suite — tracked in the [Roadmap](#roadmap). The code builds with
-> **zero warnings**, runs (auto-migrates and seeds sample data on startup), and serves Swagger UI.
+> **Project status — feature complete.**
+> All mandatory requirements from the assignment are implemented: the domain model + EF Core
+> mapping, the document synchronisation service (mock external JSON source) with full failure
+> handling, all REST endpoints (sync, order documents, sync history, re-send to Google), the
+> Google Sheets logger (CSV mock), and a unit-test suite. The code builds with **zero warnings**,
+> runs (auto-migrates and seeds sample data on startup), serves Swagger UI, and all tests pass.
 
 ---
 
@@ -107,6 +106,7 @@ JetBrains Rider/VS HTTP client).
 | `POST /api/sync/documents`              | Runs a synchronisation; returns the `SyncResult`.        | 200   |
 | `GET /api/orders/{orderNumber}/documents` | Documents for an order.                                | 200, 404 |
 | `GET /api/sync/logs?page=&pageSize=`    | Sync history, newest first, paged (`pageSize` 1–100).    | 200, 400 |
+| `POST /api/sync/logs/latest/send-to-google` | Re-sends the latest sync log to the Google Sheet logger. | 200, 404, 500 |
 | `GET /api/health`                       | Liveness probe.                                          | 200   |
 
 A typical first run against the seeded data returns
@@ -192,6 +192,23 @@ also collapsed so it cannot violate the unique index.
 The service uses `async`/`await` with `CancellationToken` throughout and an injected `TimeProvider`
 for a testable clock.
 
+### Failure handling
+
+**Every synchronisation attempt records exactly one `SyncLog`**, even on failure:
+
+- **External source unavailable / invalid payload** — the provider exception is caught; the run is
+  recorded as `Failed` with `DocumentsReceived = 0` and the error message; the API returns `200`
+  with `status: "Failed"`.
+- **Partial processing** — if an unexpected error interrupts processing after some documents were
+  handled, the run is recorded as `PartialSuccess` with the counts achieved so far and the error.
+- **Google Sheets failure** — never rolls back saved documents: the logger is called after the
+  commit, inside a `try/catch`, and the error is logged via Serilog.
+- **Database failure while persisting** — logged via Serilog and surfaced as a `500` `ProblemDetails`
+  (a dead database cannot record its own failure log).
+
+Structured logging (Serilog) covers: run start, run finish (with status + counts), external-source
+errors, processing errors, database errors and Google Sheet errors.
+
 ## Google Sheets logging
 
 Every run is reported through the `IGoogleSheetLogger` abstraction (Application layer). The shipped
@@ -203,9 +220,11 @@ to `Logs/sync-log.csv` instead of calling the real Google Sheets API:
 - RFC 4180 escaping (fields with commas/quotes/newlines are quoted, quotes doubled);
 - thread-safe (a `SemaphoreSlim` serialises writes; registered as a singleton).
 
-Columns: `StartedAt, FinishedAt, Status, DocumentsReceived, DocumentsCreated, DocumentsUpdated,
-DocumentsSkipped, ErrorMessage`. See [`docs/sample-sync-log.csv`](docs/sample-sync-log.csv) for
-example output (location/name configurable via the `GoogleSheetLogger` settings section).
+Columns (per the assignment): `RunId, StartedAt, FinishedAt, Status, DocumentsReceived,
+DocumentsCreated, DocumentsUpdated, DocumentsSkipped, ErrorMessage`. See
+[`docs/sample-sync-log.csv`](docs/sample-sync-log.csv) for example output (location/name configurable
+via the `GoogleSheetLogger` settings section). The `POST /api/sync/documents` response also reports a
+`googleSheetStatus` (`"Sent"`/`"Failed"`) for the run's dispatch to this log.
 
 The logger is invoked automatically at the end of every synchronisation (any status). A logging
 failure **never breaks the sync**: documents are already committed, and the error is caught and
@@ -273,27 +292,40 @@ Maps the assignment requirements to where they live (✅ done, ⬜ planned):
 | `GET /api/orders/{orderNumber}/documents`        | ✅     | `Api/Controllers/OrdersController`                       |
 | `GET /api/sync/logs`                              | ✅     | `Api/Controllers/SyncController`                         |
 | `IGoogleSheetLogger` + mock (CSV) implementation | ✅     | `Application/Abstractions` + `Infrastructure/GoogleSheets`|
-| `POST /api/sync/logs/latest/send-to-google`      | ⬜     | `Api/Controllers`                                        |
-| Error → `SyncLog` handling (source/payload)      | ⬜     | `Application/Features/Synchronization`                   |
+| `POST /api/sync/logs/latest/send-to-google`      | ✅     | `Api/Controllers/SyncController`                         |
+| Error → `SyncLog` handling (source/payload/partial) | ✅  | `Application/Features/Synchronization`                   |
 | Business-scenario tests (≥ 5)                    | ✅     | `tests/OrderManagement.Tests`                            |
 
 ---
 
-## Known limitations (current phase)
+## Known limitations
 
-- The Google Sheets logger is a CSV-file mock (by design); the `POST /api/sync/logs/latest/send-to-google`
-  endpoint for manual re-send is not implemented yet.
-- A failure of the external source currently surfaces as a 500 `ProblemDetails`; recording failed
-  runs in `SyncLog` (and partial-success handling) is the next step.
+- The Google Sheets logger is a CSV-file mock by design (swap the single DI registration for a real
+  Google Sheets / Apps Script client).
 - Sample orders are seeded on startup for demonstration; there is no order-management endpoint.
 - No authentication (not required by the assignment).
+- A failed `POST /api/sync/documents` returns `200` with `status: "Failed"` (the run completed and was
+  recorded); a hard database outage during persistence surfaces as `500`.
+
+---
+
+## Before a production release
+
+- Replace SQLite with a server database (PostgreSQL / SQL Server) — one provider line in
+  `AddInfrastructure` plus a connection string; keep migrations.
+- Replace the CSV mock with a real Google Sheets / Apps Script client behind the existing
+  `IGoogleSheetLogger`, with credentials supplied via secrets/environment variables.
+- Replace startup auto-migration/seeding with a controlled migration step in the deployment pipeline.
+- Add resilience around the external source (timeouts, retries with backoff) and authentication/
+  authorisation on the API.
+- Add integration tests (`WebApplicationFactory`) over the HTTP endpoints in addition to the unit tests.
 
 ---
 
 ## AI tools used
 
-- **Claude Code** — used to scaffold the Clean Architecture solution, wire up the cross-cutting
-  infrastructure (DI, Serilog, Swagger, global exception handling, EF Core/SQLite), design the
-  domain model and EF Core mappings, generate the initial migration, pin net9-compatible package
-  versions, and produce this README. All generated code was reviewed and the solution was verified
-  to build warning-free, apply its migration, and pass its tests.
+- **Claude Code** — used throughout: scaffolding the Clean Architecture solution and cross-cutting
+  infrastructure (DI, Serilog, Swagger, global exception handling, EF Core/SQLite), the domain model
+  and EF mappings + migration, the synchronisation service and its failure handling, the REST
+  endpoints, the Google Sheets (CSV) logger, the xUnit test suite, and this README. All generated
+  code was reviewed and the solution was verified to build warning-free, run, and pass its tests.

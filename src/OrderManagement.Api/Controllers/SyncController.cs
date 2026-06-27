@@ -33,4 +33,15 @@ public sealed class SyncController(
         var logs = await syncLogService.GetLogsAsync(pagination.Page, pagination.PageSize, cancellationToken);
         return Ok(logs);
     }
+
+    /// <summary>Re-sends the latest synchronisation log to the Google Sheet logger.</summary>
+    [HttpPost("logs/latest/send-to-google")]
+    [ProducesResponseType<GoogleSheetSendResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<GoogleSheetSendResult>> SendLatestLogToGoogle(CancellationToken cancellationToken)
+    {
+        var result = await syncLogService.ResendLatestToGoogleSheetAsync(cancellationToken);
+        return Ok(result);
+    }
 }

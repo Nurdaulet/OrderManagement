@@ -1,4 +1,4 @@
-StartedAt,FinishedAt,Status,DocumentsReceived,DocumentsCreated,DocumentsUpdated,DocumentsSkipped,ErrorMessage
-2026-06-25T10:00:00.0000000+00:00,2026-06-25T10:00:05.0000000+00:00,Success,10,3,2,5,
-2026-06-25T11:00:00.0000000+00:00,2026-06-25T11:00:00.5000000+00:00,Failed,0,0,0,0,"External source unavailable, retry scheduled"
-2026-06-25T12:00:00.0000000+00:00,2026-06-25T12:00:02.0000000+00:00,PartialSuccess,7,4,1,2,"Skipped 1 document: order ""ORD-999"" not found"
+RunId,StartedAt,FinishedAt,Status,DocumentsReceived,DocumentsCreated,DocumentsUpdated,DocumentsSkipped,ErrorMessage
+8f5d1cc9-0c7f-4c42-8f84-8ef86167fd63,2026-06-25T10:00:00.0000000+00:00,2026-06-25T10:00:05.0000000+00:00,Success,10,3,2,5,
+afc7e220-1b2c-4d3e-9f10-2a3b4c5d6e7f,2026-06-25T11:00:00.0000000+00:00,2026-06-25T11:00:00.5000000+00:00,Failed,0,0,0,0,"External source unavailable, retry scheduled"
+b1d9e2f3-44a5-46b7-8c90-1d2e3f4a5b6c,2026-06-25T12:00:00.0000000+00:00,2026-06-25T12:00:02.0000000+00:00,PartialSuccess,7,4,1,2,"Skipped 1 document: order ""ORD-999"" not found"

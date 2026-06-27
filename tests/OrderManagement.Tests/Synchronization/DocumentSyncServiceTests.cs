@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +53,7 @@ public sealed class DocumentSyncServiceTests : IDisposable
         result.DocumentsCreated.Should().Be(1);
         result.DocumentsUpdated.Should().Be(0);
         result.DocumentsSkipped.Should().Be(0);
+        result.GoogleSheetStatus.Should().Be("Sent");
 
         using var verify = NewContext();
         var stored = await verify.ExternalDocuments.SingleAsync();
@@ -208,6 +210,7 @@ public sealed class DocumentSyncServiceTests : IDisposable
 
         // Assert — saved data is retained despite the logging failure
         result.DocumentsCreated.Should().Be(1);
+        result.GoogleSheetStatus.Should().Be("Failed");
 
         using var verify = NewContext();
         (await verify.ExternalDocuments.CountAsync()).Should().Be(1);
@@ -331,6 +334,77 @@ public sealed class DocumentSyncServiceTests : IDisposable
         (await verify.SyncLogs.SingleAsync()).Id.Should().Be(result.RunId);
     }
 
+    [Fact]
+    public async Task Records_failed_run_when_external_source_is_unavailable()
+    {
+        // Arrange
+        var provider = new Mock<IExternalDocumentProvider>();
+        provider.Setup(p => p.GetDocumentsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("external source unavailable"));
+        var service = new DocumentSyncService(
+            NewContext(), provider.Object, Mock.Of<IGoogleSheetLogger>(),
+            TimeProvider.System, NullLogger<DocumentSyncService>.Instance);
+
+        // Act — the failure is captured, not thrown
+        var result = await service.SynchronizeAsync();
+
+        // Assert
+        result.Status.Should().Be(SyncStatus.Failed);
+        result.DocumentsReceived.Should().Be(0);
+
+        using var verify = NewContext();
+        var log = await verify.SyncLogs.SingleAsync();
+        log.Status.Should().Be(SyncStatus.Failed);
+        log.DocumentsReceived.Should().Be(0);
+        log.ErrorMessage.Should().Contain("external source unavailable");
+    }
+
+    [Fact]
+    public async Task Records_failed_run_when_payload_is_invalid()
+    {
+        // Arrange — the provider fails to parse the source payload
+        var provider = new Mock<IExternalDocumentProvider>();
+        provider.Setup(p => p.GetDocumentsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new JsonException("invalid JSON token"));
+        var service = new DocumentSyncService(
+            NewContext(), provider.Object, Mock.Of<IGoogleSheetLogger>(),
+            TimeProvider.System, NullLogger<DocumentSyncService>.Instance);
+
+        // Act
+        var result = await service.SynchronizeAsync();
+
+        // Assert
+        result.Status.Should().Be(SyncStatus.Failed);
+
+        using var verify = NewContext();
+        var log = await verify.SyncLogs.SingleAsync();
+        log.Status.Should().Be(SyncStatus.Failed);
+        log.ErrorMessage.Should().Contain("invalid JSON token");
+    }
+
+    [Fact]
+    public async Task Records_partial_success_when_processing_is_interrupted()
+    {
+        // Arrange — two new documents; processing is interrupted after the first is created.
+        SeedOrder("ORD-1");
+        var interrupting = new InterruptAfterFirstCreateDbContext(NewContext());
+        var service = CreateService([Dto("EXT-1", "ORD-1"), Dto("EXT-2", "ORD-1")], context: interrupting);
+
+        // Act
+        var result = await service.SynchronizeAsync();
+
+        // Assert — what was processed is kept and recorded as PartialSuccess
+        result.Status.Should().Be(SyncStatus.PartialSuccess);
+        result.DocumentsCreated.Should().Be(1);
+
+        using var verify = NewContext();
+        var log = await verify.SyncLogs.SingleAsync();
+        log.Status.Should().Be(SyncStatus.PartialSuccess);
+        log.DocumentsCreated.Should().Be(1);
+        log.ErrorMessage.Should().NotBeNullOrEmpty();
+        (await verify.ExternalDocuments.CountAsync()).Should().Be(1);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private AppDbContext NewContext() => new(_options);
@@ -411,5 +485,35 @@ public sealed class DocumentSyncServiceTests : IDisposable
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
             throw new DbUpdateException("Simulated database failure.");
+    }
+
+    /// <summary>
+    /// Decorates a real context but throws when documents are accessed for the second create,
+    /// simulating an unexpected failure partway through processing (for the PartialSuccess path).
+    /// Access 1 is the pre-load query; subsequent accesses are per-document <c>Add</c> calls.
+    /// </summary>
+    private sealed class InterruptAfterFirstCreateDbContext(AppDbContext inner) : IApplicationDbContext
+    {
+        private int _documentSetAccesses;
+
+        public DbSet<Order> Orders => inner.Orders;
+        public DbSet<SyncLog> SyncLogs => inner.SyncLogs;
+
+        public DbSet<ExternalDocument> ExternalDocuments
+        {
+            get
+            {
+                _documentSetAccesses++;
+                if (_documentSetAccesses == 3)
+                {
+                    throw new InvalidOperationException("processing interrupted");
+                }
+
+                return inner.ExternalDocuments;
+            }
+        }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            inner.SaveChangesAsync(cancellationToken);
     }
 }
