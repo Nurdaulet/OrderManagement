@@ -31,6 +31,9 @@ public static class DependencyInjection
             configuration.GetSection(ExternalDocumentSourceOptions.SectionName));
         services.AddScoped<IExternalDocumentProvider, JsonExternalDocumentProvider>();
 
+        // Applies migrations and seeds sample orders on startup.
+        services.AddScoped<AppDbInitializer>();
+
         return services;
     }
 }

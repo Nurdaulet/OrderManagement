@@ -3,28 +3,41 @@
 
 @host = http://localhost:5216
 
-### Health check (implemented)
+### Health check
 GET {{host}}/api/health
 Accept: application/json
 
-### Swagger / OpenAPI document (implemented)
+### Run document synchronisation
+# First run against the seeded orders returns created 6 / skipped 1 (ORD-999 has no order).
+POST {{host}}/api/sync/documents
+Accept: application/json
+
+### Get documents for a seeded order
+GET {{host}}/api/orders/ORD-001/documents
+Accept: application/json
+
+### Get documents for an unknown order -> 404 ProblemDetails
+GET {{host}}/api/orders/ORD-404/documents
+Accept: application/json
+
+### Synchronisation history (newest first), default paging
+GET {{host}}/api/sync/logs
+Accept: application/json
+
+### Synchronisation history with paging
+GET {{host}}/api/sync/logs?page=1&pageSize=10
+Accept: application/json
+
+### Invalid paging -> 400 validation ProblemDetails
+GET {{host}}/api/sync/logs?page=0&pageSize=500
+Accept: application/json
+
+### OpenAPI document
 GET {{host}}/swagger/v1/swagger.json
 Accept: application/json
 
 
 ### ─────────────────────────────────────────────────────────────────────────
-### Planned endpoints (Phase 2 — not implemented yet).
-### Listed here so the contract is visible; they will return 404 until implemented.
+### Planned (not implemented yet):
+### POST {{host}}/api/sync/logs/latest/send-to-google
 ### ─────────────────────────────────────────────────────────────────────────
-
-### Run document synchronisation
-# POST {{host}}/api/sync/documents
-
-### Get documents for an order
-# GET {{host}}/api/orders/ORD-001/documents
-
-### Get synchronisation history
-# GET {{host}}/api/sync/logs
-
-### Re-send the latest sync log to Google Sheets
-# POST {{host}}/api/sync/logs/latest/send-to-google

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using OrderManagement.Application.Features.Orders;
 using OrderManagement.Application.Features.Synchronization;
 
 namespace OrderManagement.Application;
@@ -12,7 +13,10 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
+
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
+        services.AddScoped<IOrderDocumentService, OrderDocumentService>();
+        services.AddScoped<ISyncLogService, SyncLogService>();
 
         return services;
     }

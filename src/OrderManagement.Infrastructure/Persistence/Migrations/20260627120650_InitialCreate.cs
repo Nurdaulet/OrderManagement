@@ -19,7 +19,7 @@ namespace OrderManagement.Infrastructure.Persistence.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     OrderNumber = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     ClientName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    CreatedAt = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -31,8 +31,8 @@ namespace OrderManagement.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    StartedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    FinishedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    StartedAt = table.Column<long>(type: "INTEGER", nullable: false),
+                    FinishedAt = table.Column<long>(type: "INTEGER", nullable: true),
                     Status = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
                     DocumentsReceived = table.Column<int>(type: "INTEGER", nullable: false),
                     DocumentsCreated = table.Column<int>(type: "INTEGER", nullable: false),
@@ -58,9 +58,9 @@ namespace OrderManagement.Infrastructure.Persistence.Migrations
                     Amount = table.Column<decimal>(type: "TEXT", nullable: false),
                     Currency = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
                     Status = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    ExternalUpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    ExternalUpdatedAt = table.Column<long>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<long>(type: "INTEGER", nullable: false),
+                    UpdatedAt = table.Column<long>(type: "INTEGER", nullable: false),
                     OrderId = table.Column<int>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>

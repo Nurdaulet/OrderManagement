@@ -3,13 +3,13 @@
 Service for synchronising financial documents (invoices and acts of work) between the internal
 **Order Management** system and an external system, with sync history and a Google Sheets log.
 
-> **Project status — Phase 2: domain model + persistence.**
-> The production-ready solution skeleton, cross-cutting infrastructure, the **domain model**
-> (`Order`, `ExternalDocument`, `SyncLog` + enums) and the **EF Core mapping with an initial
-> migration** are in place. The remaining **business logic** (the actual document synchronisation,
-> the mock external source, the Google Sheets integration and the business endpoints) is **not
-> implemented yet** and is tracked in the [Roadmap](#roadmap). The current code builds with
-> **zero warnings**, runs, exposes a Health endpoint and Swagger UI, and has passing tests.
+> **Project status — Phase 3: synchronisation + REST API.**
+> The solution skeleton, cross-cutting infrastructure, domain model + EF Core mapping, the
+> **document synchronisation service** (mock external JSON source) and the **REST endpoints**
+> (sync, order documents, sync history) are in place. Still outstanding: the **Google Sheets
+> logger** and the `send-to-google` endpoint, error→`SyncLog` handling, and the full
+> business-scenario test suite — tracked in the [Roadmap](#roadmap). The code builds with
+> **zero warnings**, runs (auto-migrates and seeds sample data on startup), and serves Swagger UI.
 
 ---
 
@@ -43,21 +43,23 @@ OrderManagement.sln
 │  │  ├─ Entities/                     Order, ExternalDocument, SyncLog
 │  │  └─ Enums/                        DocumentType, DocumentStatus, SyncStatus
 │  ├─ OrderManagement.Application      # use cases, ports (interfaces), DTOs → depends on Domain
-│  │  ├─ Abstractions/                 (ports, e.g. IGoogleSheetLogger — next phase)
-│  │  ├─ Common/
-│  │  ├─ Features/
+│  │  ├─ Abstractions/                 IExternalDocumentProvider, IApplicationDbContext
+│  │  ├─ Common/                       Models (DTOs) + Exceptions
+│  │  ├─ Features/                     Synchronization (sync + logs), Orders (documents)
 │  │  └─ DependencyInjection.cs        # AddApplication()
 │  ├─ OrderManagement.Infrastructure   # EF Core, external integrations → depends on Application
 │  │  ├─ Persistence/
 │  │  │  ├─ AppDbContext.cs            # DbSets + ApplyConfigurationsFromAssembly
 │  │  │  ├─ AppDbContextFactory.cs     # design-time factory for `dotnet ef`
+│  │  │  ├─ AppDbInitializer.cs        # migrate + seed sample orders on startup
 │  │  │  ├─ Configurations/            IEntityTypeConfiguration per entity
 │  │  │  └─ Migrations/                EF Core migrations (InitialCreate)
-│  │  ├─ ExternalApi/                  (mock external documents client — next phase)
+│  │  ├─ ExternalApi/                  JsonExternalDocumentProvider + external-documents.json
 │  │  ├─ GoogleSheets/                 (IGoogleSheetLogger impl — next phase)
 │  │  └─ DependencyInjection.cs        # AddInfrastructure() — registers DbContext (SQLite)
 │  └─ OrderManagement.Api              # composition root → depends on Application + Infrastructure
-│     ├─ Controllers/HealthController.cs
+│     ├─ Controllers/                  Health, Sync, Orders
+│     ├─ Contracts/                    request models (PaginationParameters)
 │     ├─ Middleware/GlobalExceptionHandler.cs
 │     ├─ Program.cs
 │     ├─ appsettings.json
@@ -88,13 +90,29 @@ no dependencies; the Application defines the abstractions that Infrastructure im
 dotnet run --project src/OrderManagement.Api
 ```
 
-The API starts in the `Development` environment by default (see `launchSettings.json`):
+The API starts in the `Development` environment by default (see `launchSettings.json`). On startup
+it **applies migrations and seeds sample orders** (`ORD-001`/`ORD-002`/`ORD-003`), so it is usable
+immediately with no manual EF steps.
 
 - Swagger UI:   <http://localhost:5216/swagger>
 - Health check: <http://localhost:5216/api/health>
 
 Sample requests are in [`requests.http`](requests.http) (works with the VS Code REST Client or
 JetBrains Rider/VS HTTP client).
+
+### API endpoints
+
+| Method & route                          | Description                                              | Codes |
+|-----------------------------------------|----------------------------------------------------------|-------|
+| `POST /api/sync/documents`              | Runs a synchronisation; returns the `SyncResult`.        | 200   |
+| `GET /api/orders/{orderNumber}/documents` | Documents for an order.                                | 200, 404 |
+| `GET /api/sync/logs?page=&pageSize=`    | Sync history, newest first, paged (`pageSize` 1–100).    | 200, 400 |
+| `GET /api/health`                       | Liveness probe.                                          | 200   |
+
+A typical first run against the seeded data returns
+`received 7, created 6, updated 0, skipped 1` (the document for the non-existent `ORD-999` is the
+skipped orphan). Errors are returned as RFC 7807 `ProblemDetails` (e.g. 404 for an unknown order,
+400 for invalid paging).
 
 ---
 
@@ -109,8 +127,8 @@ Current tests are foundation smoke tests:
 1. `HealthControllerTests` — the Health endpoint returns a `Healthy` status.
 2. `AppDbContextTests` — the EF Core SQLite provider can create and connect to a database.
 
-The business-scenario tests required by the assignment (dedup, status update, orphan handling,
-SyncLog on error, Google Sheets dispatch, etc.) are added in Phase 2 alongside the logic they cover.
+The full business-scenario suite required by the assignment (dedup, status update, orphan handling,
+SyncLog on error, Google Sheets dispatch, etc.) lands in a dedicated testing phase.
 
 ---
 
@@ -134,20 +152,48 @@ Modelling decisions:
 - **Money** — `Amount` is `decimal`. SQLite has no native decimal type, so it is stored as `TEXT`
   to preserve precision (the app does not sort/aggregate by amount).
 - **Timestamps** — all dates use `DateTimeOffset` (timezone-aware; the external payloads are UTC `…Z`).
+  SQLite cannot `ORDER BY`/compare `DateTimeOffset`, so a global `DateTimeOffsetToBinaryConverter`
+  (configured in `ConfigureConventions`) stores them as order-preserving `INTEGER` values — this is
+  what lets "sync logs ordered by `StartedAt`" run in the database.
 - **Order relationship & orphans** — `ExternalDocument` keeps the raw `OrderNumber` from the
-  external system plus an **optional internal `OrderId` FK** to `Order` (`onDelete: SetNull`).
-  Making the relationship optional means a document that references an unknown order can still be
-  stored (an *orphan*) without violating a foreign key. The concrete orphan-handling policy
-  (resolve / auto-create / leave orphan) is a business rule and will be decided and documented when
-  the synchronisation logic is implemented.
+  external system plus an **optional internal `OrderId` FK** to `Order` (`onDelete: SetNull`). The
+  relationship is optional so an orphan *could* be stored, but the **chosen orphan policy is to skip**
+  documents whose order does not exist (counted in `DocumentsSkipped`); during sync the matching
+  order is resolved and `OrderId` is set.
+
+## How synchronisation works
+
+`POST /api/sync/documents` invokes `DocumentSyncService` (Application layer), which:
+
+1. reads documents from `IExternalDocumentProvider`. The mock implementation
+   (`JsonExternalDocumentProvider`) reads `ExternalApi/external-documents.json` — configurable via
+   `ExternalDocumentSource:FilePath`. Swap this single implementation for a real API client without
+   touching callers.
+2. pre-loads the referenced orders and existing documents (two queries, no N+1), then for each
+   incoming document:
+   - **no matching order** → skip (orphan policy);
+   - **new `ExternalId`** → create;
+   - **known `ExternalId`** → update only if `Status`, `Amount` or `ExternalUpdatedAt` changed,
+     otherwise skip;
+3. writes a `SyncLog` row and persists everything with a single `SaveChanges` (one transaction).
+
+**Deduplication** is enforced two ways: by `ExternalId` lookup in the service, and by the unique
+index on `ExternalDocument.ExternalId` at the database level (a re-run with the same data creates no
+duplicates — everything is reported as skipped). Within a single batch, a repeated `ExternalId` is
+also collapsed so it cannot violate the unique index.
+
+The service uses `async`/`await` with `CancellationToken` throughout and an injected `TimeProvider`
+for a testable clock.
 
 ## Database & migrations
 
 - **Database:** SQLite. Connection string in `appsettings.json` → `ConnectionStrings:DefaultConnection`
   (default `Data Source=ordermanagement.db`).
+- The API **applies migrations and seeds sample orders on startup** (see `AppDbInitializer`), so no
+  manual database setup is required to run it.
 - The `DbContext` and a design-time factory (`AppDbContextFactory`) are in place; migrations live in
   `src/OrderManagement.Infrastructure/Persistence/Migrations`.
-- **Create the database** from the committed migration (run from the repository root):
+- To create/update the database manually instead (run from the repository root):
   ```bash
   dotnet ef database update \
     --project src/OrderManagement.Infrastructure \
@@ -194,22 +240,25 @@ Maps the assignment requirements to where they live (✅ done, ⬜ planned):
 | `Order`, `ExternalDocument`, `SyncLog` entities | ✅     | `Domain/Entities`, `Domain/Enums`                         |
 | EF Core mapping + initial migration             | ✅     | `Infrastructure/Persistence`                              |
 | Unique constraint on `ExternalId` (dedup)       | ✅     | `Infrastructure/Persistence/Configurations`              |
-| Mock external documents source                  | ⬜     | `Infrastructure/ExternalApi`                              |
+| Mock external documents source                  | ✅     | `Infrastructure/ExternalApi`                              |
+| Sync use case (create/update/skip, SyncLog)     | ✅     | `Application/Features/Synchronization`                    |
+| `POST /api/sync/documents`                       | ✅     | `Api/Controllers/SyncController`                         |
+| `GET /api/orders/{orderNumber}/documents`        | ✅     | `Api/Controllers/OrdersController`                       |
+| `GET /api/sync/logs`                              | ✅     | `Api/Controllers/SyncController`                         |
 | `IGoogleSheetLogger` + mock implementation      | ⬜     | `Application/Abstractions` + `Infrastructure/GoogleSheets`|
-| Sync use case (create/update/skip, SyncLog)     | ⬜     | `Application/Features`                                    |
-| `POST /api/sync/documents`                       | ⬜     | `Api/Controllers`                                        |
-| `GET /api/orders/{orderNumber}/documents`        | ⬜     | `Api/Controllers`                                        |
-| `GET /api/sync/logs`                              | ⬜     | `Api/Controllers`                                        |
 | `POST /api/sync/logs/latest/send-to-google`      | ⬜     | `Api/Controllers`                                        |
+| Error → `SyncLog` handling (source/payload)      | ⬜     | `Application/Features/Synchronization`                   |
 | Business-scenario tests (≥ 5)                    | ⬜     | `tests/OrderManagement.Tests`                            |
 
 ---
 
 ## Known limitations (current phase)
 
-- No synchronisation logic, external source, Google Sheets integration, or business endpoints yet —
-  Health only. The domain model and database schema are in place.
-- The orphan-handling policy is intentionally not yet decided (see [Data model](#data-model)).
+- The Google Sheets logger and the `POST /api/sync/logs/latest/send-to-google` endpoint are not
+  implemented yet.
+- A failure of the external source currently surfaces as a 500 `ProblemDetails`; recording failed
+  runs in `SyncLog` (and partial-success handling) is the next step.
+- Sample orders are seeded on startup for demonstration; there is no order-management endpoint.
 - No authentication (not required by the assignment).
 
 ---

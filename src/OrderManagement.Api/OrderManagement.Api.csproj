@@ -2,6 +2,12 @@
 
   <!-- Presentation layer: ASP.NET Core Web API host, controllers and composition root. -->
 
+  <PropertyGroup>
+    <!-- Emit XML docs for Swagger; do not fail the build on members without doc comments. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- EF Core design-time services so `dotnet ef migrations add` works from this startup project. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.9">
