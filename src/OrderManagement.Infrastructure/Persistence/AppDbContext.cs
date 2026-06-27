@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OrderManagement.Application.Abstractions;
 using OrderManagement.Domain.Entities;
 
 namespace OrderManagement.Infrastructure.Persistence;
@@ -9,8 +10,11 @@ namespace OrderManagement.Infrastructure.Persistence;
 /// <remarks>
 /// Entity configurations are auto-discovered from this assembly via
 /// <see cref="ModelBuilder.ApplyConfigurationsFromAssembly(System.Reflection.Assembly)"/>.
+/// Implements <see cref="IApplicationDbContext"/> so the Application layer can use it
+/// without referencing a concrete EF Core provider.
 /// </remarks>
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
+    : DbContext(options), IApplicationDbContext
 {
     public DbSet<Order> Orders => Set<Order>();
 

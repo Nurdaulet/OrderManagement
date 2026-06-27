@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using OrderManagement.Application.Features.Synchronization;
 
 namespace OrderManagement.Application;
 
@@ -9,8 +11,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        // Use-case handlers, validators and pipeline behaviours are registered here
-        // as the application logic is implemented.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IDocumentSyncService, DocumentSyncService>();
+
         return services;
     }
 }

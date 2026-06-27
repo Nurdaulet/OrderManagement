@@ -1,10 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Application layer: use cases, abstractions (ports) and DTOs.
-       Depends only on the Domain. -->
+  <!-- Application layer: use cases, abstractions (ports) and DTOs. Depends on the Domain.
+       References EF Core *core* only (not a provider) for the IApplicationDbContext abstraction
+       (DbSet<T> and async query operators); the concrete DbContext lives in Infrastructure. -->
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.9" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.9" />
   </ItemGroup>
 
   <ItemGroup>

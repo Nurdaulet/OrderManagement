@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OrderManagement.Application.Abstractions;
+using OrderManagement.Infrastructure.ExternalApi;
 using OrderManagement.Infrastructure.Persistence;
 
 namespace OrderManagement.Infrastructure;
@@ -20,6 +22,14 @@ public static class DependencyInjection
             configuration.GetConnectionString("DefaultConnection") ?? DefaultConnectionString;
 
         services.AddDbContext<AppDbContext>(options => options.UseSqlite(connectionString));
+
+        // Expose the context to the Application layer through its abstraction (same scoped instance).
+        services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+        // Mock external document source (reads a local JSON file).
+        services.Configure<ExternalDocumentSourceOptions>(
+            configuration.GetSection(ExternalDocumentSourceOptions.SectionName));
+        services.AddScoped<IExternalDocumentProvider, JsonExternalDocumentProvider>();
 
         return services;
     }

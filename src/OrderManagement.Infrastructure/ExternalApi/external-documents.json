@@ -1,0 +1,72 @@
+[
+  {
+    "externalId": "EXT-INV-001",
+    "orderNumber": "ORD-001",
+    "documentType": "Invoice",
+    "documentNumber": "INV-2026-001",
+    "amount": 150000.00,
+    "currency": "KZT",
+    "status": "Created",
+    "externalUpdatedAt": "2026-06-20T10:00:00Z"
+  },
+  {
+    "externalId": "EXT-ACT-001",
+    "orderNumber": "ORD-001",
+    "documentType": "ActOfWork",
+    "documentNumber": "ACT-2026-001",
+    "amount": 150000.00,
+    "currency": "KZT",
+    "status": "Signed",
+    "externalUpdatedAt": "2026-06-21T12:00:00Z"
+  },
+  {
+    "externalId": "EXT-INV-002",
+    "orderNumber": "ORD-002",
+    "documentType": "Invoice",
+    "documentNumber": "INV-2026-002",
+    "amount": 80000.00,
+    "currency": "KZT",
+    "status": "Sent",
+    "externalUpdatedAt": "2026-06-22T09:30:00Z"
+  },
+  {
+    "externalId": "EXT-ACT-002",
+    "orderNumber": "ORD-002",
+    "documentType": "ActOfWork",
+    "documentNumber": "ACT-2026-002",
+    "amount": 80000.00,
+    "currency": "KZT",
+    "status": "Created",
+    "externalUpdatedAt": "2026-06-22T09:45:00Z"
+  },
+  {
+    "externalId": "EXT-INV-003",
+    "orderNumber": "ORD-003",
+    "documentType": "Invoice",
+    "documentNumber": "INV-2026-003",
+    "amount": 1250000.50,
+    "currency": "KZT",
+    "status": "Signed",
+    "externalUpdatedAt": "2026-06-23T14:15:00Z"
+  },
+  {
+    "externalId": "EXT-INV-004",
+    "orderNumber": "ORD-003",
+    "documentType": "Invoice",
+    "documentNumber": "INV-2026-004",
+    "amount": 56000.00,
+    "currency": "USD",
+    "status": "Rejected",
+    "externalUpdatedAt": "2026-06-24T08:00:00Z"
+  },
+  {
+    "externalId": "EXT-INV-099",
+    "orderNumber": "ORD-999",
+    "documentType": "Invoice",
+    "documentNumber": "INV-2026-099",
+    "amount": 42000.00,
+    "currency": "KZT",
+    "status": "Created",
+    "externalUpdatedAt": "2026-06-25T11:00:00Z"
+  }
+]
