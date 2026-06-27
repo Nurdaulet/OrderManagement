@@ -29,8 +29,9 @@ coverage*.info
 *.sqlite
 *.sqlite3
 
-## Logs (Serilog file sink output)
+## Logs (Serilog file sink output + CSV Google Sheet log)
 logs/
+Logs/
 *.log
 
 ## Secrets — never commit Google credentials / service-account JSON

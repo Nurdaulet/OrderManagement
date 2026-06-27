@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OrderManagement.Application.Abstractions;
 using OrderManagement.Infrastructure.ExternalApi;
+using OrderManagement.Infrastructure.GoogleSheets;
 using OrderManagement.Infrastructure.Persistence;
 
 namespace OrderManagement.Infrastructure;
@@ -30,6 +31,11 @@ public static class DependencyInjection
         services.Configure<ExternalDocumentSourceOptions>(
             configuration.GetSection(ExternalDocumentSourceOptions.SectionName));
         services.AddScoped<IExternalDocumentProvider, JsonExternalDocumentProvider>();
+
+        // Mock Google Sheets logger (appends to a local CSV). Singleton so writes are serialised.
+        services.Configure<CsvGoogleSheetLoggerOptions>(
+            configuration.GetSection(CsvGoogleSheetLoggerOptions.SectionName));
+        services.AddSingleton<IGoogleSheetLogger, CsvGoogleSheetLogger>();
 
         // Applies migrations and seeds sample orders on startup.
         services.AddScoped<AppDbInitializer>();

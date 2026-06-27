@@ -3,11 +3,11 @@
 Service for synchronising financial documents (invoices and acts of work) between the internal
 **Order Management** system and an external system, with sync history and a Google Sheets log.
 
-> **Project status — Phase 3: synchronisation + REST API.**
+> **Project status — Phase 3: synchronisation + REST API + Google Sheets log.**
 > The solution skeleton, cross-cutting infrastructure, domain model + EF Core mapping, the
-> **document synchronisation service** (mock external JSON source) and the **REST endpoints**
-> (sync, order documents, sync history) are in place. Still outstanding: the **Google Sheets
-> logger** and the `send-to-google` endpoint, error→`SyncLog` handling, and the full
+> **document synchronisation service** (mock external JSON source), the **REST endpoints**
+> (sync, order documents, sync history) and the **Google Sheets logger** (CSV mock) are in place.
+> Still outstanding: the `send-to-google` re-send endpoint, error→`SyncLog` handling, and the full
 > business-scenario test suite — tracked in the [Roadmap](#roadmap). The code builds with
 > **zero warnings**, runs (auto-migrates and seeds sample data on startup), and serves Swagger UI.
 
@@ -55,7 +55,7 @@ OrderManagement.sln
 │  │  │  ├─ Configurations/            IEntityTypeConfiguration per entity
 │  │  │  └─ Migrations/                EF Core migrations (InitialCreate)
 │  │  ├─ ExternalApi/                  JsonExternalDocumentProvider + external-documents.json
-│  │  ├─ GoogleSheets/                 (IGoogleSheetLogger impl — next phase)
+│  │  ├─ GoogleSheets/                 CsvGoogleSheetLogger (mock IGoogleSheetLogger)
 │  │  └─ DependencyInjection.cs        # AddInfrastructure() — registers DbContext (SQLite)
 │  └─ OrderManagement.Api              # composition root → depends on Application + Infrastructure
 │     ├─ Controllers/                  Health, Sync, Orders
@@ -185,6 +185,26 @@ also collapsed so it cannot violate the unique index.
 The service uses `async`/`await` with `CancellationToken` throughout and an injected `TimeProvider`
 for a testable clock.
 
+## Google Sheets logging
+
+Every run is reported through the `IGoogleSheetLogger` abstraction (Application layer). The shipped
+implementation is **`CsvGoogleSheetLogger`** (Infrastructure) — a mock that appends one row per run
+to `Logs/sync-log.csv` instead of calling the real Google Sheets API:
+
+- creates the `Logs` folder and `sync-log.csv` automatically, writing the header row once;
+- **appends** (never overwrites); asynchronous file I/O; UTF-8 (no BOM);
+- RFC 4180 escaping (fields with commas/quotes/newlines are quoted, quotes doubled);
+- thread-safe (a `SemaphoreSlim` serialises writes; registered as a singleton).
+
+Columns: `StartedAt, FinishedAt, Status, DocumentsReceived, DocumentsCreated, DocumentsUpdated,
+DocumentsSkipped, ErrorMessage`. See [`docs/sample-sync-log.csv`](docs/sample-sync-log.csv) for
+example output (location/name configurable via the `GoogleSheetLogger` settings section).
+
+The logger is invoked automatically at the end of every synchronisation (any status). A logging
+failure **never breaks the sync**: documents are already committed, and the error is caught and
+recorded via Serilog. To use real Google Sheets, replace the single DI registration of
+`IGoogleSheetLogger` with an API/Apps-Script implementation — no caller changes required.
+
 ## Database & migrations
 
 - **Database:** SQLite. Connection string in `appsettings.json` → `ConnectionStrings:DefaultConnection`
@@ -245,7 +265,7 @@ Maps the assignment requirements to where they live (✅ done, ⬜ planned):
 | `POST /api/sync/documents`                       | ✅     | `Api/Controllers/SyncController`                         |
 | `GET /api/orders/{orderNumber}/documents`        | ✅     | `Api/Controllers/OrdersController`                       |
 | `GET /api/sync/logs`                              | ✅     | `Api/Controllers/SyncController`                         |
-| `IGoogleSheetLogger` + mock implementation      | ⬜     | `Application/Abstractions` + `Infrastructure/GoogleSheets`|
+| `IGoogleSheetLogger` + mock (CSV) implementation | ✅     | `Application/Abstractions` + `Infrastructure/GoogleSheets`|
 | `POST /api/sync/logs/latest/send-to-google`      | ⬜     | `Api/Controllers`                                        |
 | Error → `SyncLog` handling (source/payload)      | ⬜     | `Application/Features/Synchronization`                   |
 | Business-scenario tests (≥ 5)                    | ⬜     | `tests/OrderManagement.Tests`                            |
@@ -254,8 +274,8 @@ Maps the assignment requirements to where they live (✅ done, ⬜ planned):
 
 ## Known limitations (current phase)
 
-- The Google Sheets logger and the `POST /api/sync/logs/latest/send-to-google` endpoint are not
-  implemented yet.
+- The Google Sheets logger is a CSV-file mock (by design); the `POST /api/sync/logs/latest/send-to-google`
+  endpoint for manual re-send is not implemented yet.
 - A failure of the external source currently surfaces as a 500 `ProblemDetails`; recording failed
   runs in `SyncLog` (and partial-success handling) is the next step.
 - Sample orders are seeded on startup for demonstration; there is no order-management endpoint.

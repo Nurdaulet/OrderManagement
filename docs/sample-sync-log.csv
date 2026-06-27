@@ -1,0 +1,4 @@
+StartedAt,FinishedAt,Status,DocumentsReceived,DocumentsCreated,DocumentsUpdated,DocumentsSkipped,ErrorMessage
+2026-06-25T10:00:00.0000000+00:00,2026-06-25T10:00:05.0000000+00:00,Success,10,3,2,5,
+2026-06-25T11:00:00.0000000+00:00,2026-06-25T11:00:00.5000000+00:00,Failed,0,0,0,0,"External source unavailable, retry scheduled"
+2026-06-25T12:00:00.0000000+00:00,2026-06-25T12:00:02.0000000+00:00,PartialSuccess,7,4,1,2,"Skipped 1 document: order ""ORD-999"" not found"

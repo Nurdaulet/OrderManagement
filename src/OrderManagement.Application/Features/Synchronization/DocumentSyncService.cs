@@ -15,6 +15,7 @@ namespace OrderManagement.Application.Features.Synchronization;
 public sealed class DocumentSyncService(
     IApplicationDbContext context,
     IExternalDocumentProvider provider,
+    IGoogleSheetLogger googleSheetLogger,
     TimeProvider timeProvider,
     ILogger<DocumentSyncService> logger) : IDocumentSyncService
 {
@@ -95,7 +96,23 @@ public sealed class DocumentSyncService(
             "Document synchronisation run {RunId} finished with {Status}: received {Received}, created {Created}, updated {Updated}, skipped {Skipped}",
             runId, syncLog.Status, received, created, updated, skipped);
 
+        // Report the run to the external sheet log. This runs after the data is committed and must
+        // never fail the synchronisation, so any error is caught and logged.
+        await SendToGoogleSheetAsync(syncLog, cancellationToken);
+
         return new SyncResult(runId, syncLog.Status, received, created, updated, skipped);
+    }
+
+    private async Task SendToGoogleSheetAsync(SyncLog syncLog, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await googleSheetLogger.LogAsync(syncLog, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send synchronisation run {RunId} to the Google Sheet log", syncLog.Id);
+        }
     }
 
     /// <summary>A document is updated only when its status, amount or external timestamp changed.</summary>
