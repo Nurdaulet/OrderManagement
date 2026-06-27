@@ -23,7 +23,7 @@ Service for synchronising financial documents (invoices and acts of work) betwee
 | Persistence        | Entity Framework Core 9 + **SQLite**                         |
 | API docs           | Swagger / OpenAPI (Swashbuckle)                              |
 | Logging            | Serilog (Console + rolling File sinks)                       |
-| Tests              | xUnit                                                        |
+| Tests              | xUnit, FluentAssertions, Moq                                |
 
 SQLite was chosen because it is zero-configuration and file-based, which keeps the assignment
 self-contained (no database server to install) while still exercising real EF Core migrations and
@@ -122,13 +122,20 @@ skipped orphan). Errors are returned as RFC 7807 `ProblemDetails` (e.g. 404 for 
 dotnet test
 ```
 
-Current tests are foundation smoke tests:
+Tooling: **xUnit + FluentAssertions + Moq**. `DocumentSyncServiceTests` mocks the external
+dependencies (document provider, Google Sheet logger) with Moq and runs against a real **SQLite
+in-memory** database, so the service's create/update/skip logic is exercised against EF Core without
+mocking it (and without testing EF Core itself). Each test gets an isolated database.
 
-1. `HealthControllerTests` — the Health endpoint returns a `Healthy` status.
-2. `AppDbContextTests` — the EF Core SQLite provider can create and connect to a database.
+Coverage includes: creating new documents, updating on `Status`/`Amount`/`ExternalUpdatedAt`
+changes, skipping unchanged documents, skipping orphans (unknown order), multi-document counts,
+`SyncLog` creation, the Google Sheet logger being called exactly once, synchronisation surviving a
+logger failure, **no data persisted when `SaveChanges` fails** (rollback), empty source, in-batch
+duplicate `ExternalId`, and cancellation. Plus two foundation smoke tests (`HealthControllerTests`,
+`AppDbContextTests`).
 
-The full business-scenario suite required by the assignment (dedup, status update, orphan handling,
-SyncLog on error, Google Sheets dispatch, etc.) lands in a dedicated testing phase.
+> **Note on FluentAssertions:** pinned to **7.x** (Apache-2.0). Version 8+ moved to a commercial
+> licence, so 7.x is used to keep the project free to build and run.
 
 ---
 
@@ -268,7 +275,7 @@ Maps the assignment requirements to where they live (✅ done, ⬜ planned):
 | `IGoogleSheetLogger` + mock (CSV) implementation | ✅     | `Application/Abstractions` + `Infrastructure/GoogleSheets`|
 | `POST /api/sync/logs/latest/send-to-google`      | ⬜     | `Api/Controllers`                                        |
 | Error → `SyncLog` handling (source/payload)      | ⬜     | `Application/Features/Synchronization`                   |
-| Business-scenario tests (≥ 5)                    | ⬜     | `tests/OrderManagement.Tests`                            |
+| Business-scenario tests (≥ 5)                    | ✅     | `tests/OrderManagement.Tests`                            |
 
 ---
 
