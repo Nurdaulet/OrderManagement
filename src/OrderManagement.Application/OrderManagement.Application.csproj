@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Application layer: use cases, abstractions (ports) and DTOs.
+       Depends only on the Domain. -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OrderManagement.Domain\OrderManagement.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

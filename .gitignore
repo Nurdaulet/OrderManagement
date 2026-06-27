@@ -1,0 +1,45 @@
+## .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+## Rider / Visual Studio / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vscode/
+
+## Test results & coverage
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.trx
+
+## SQLite local databases (created at runtime)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+## Logs (Serilog file sink output)
+logs/
+*.log
+
+## Secrets — never commit Google credentials / service-account JSON
+appsettings.*.local.json
+secrets.json
+*.Secret.json
+google-credentials.json
+service-account*.json
+
+## OS files
+.DS_Store
+Thumbs.db

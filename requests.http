@@ -1,0 +1,30 @@
+### Order Management API — sample requests
+### Use with the VS Code "REST Client" extension or the JetBrains/VS HTTP client.
+
+@host = http://localhost:5216
+
+### Health check (implemented)
+GET {{host}}/api/health
+Accept: application/json
+
+### Swagger / OpenAPI document (implemented)
+GET {{host}}/swagger/v1/swagger.json
+Accept: application/json
+
+
+### ─────────────────────────────────────────────────────────────────────────
+### Planned endpoints (Phase 2 — not implemented yet).
+### Listed here so the contract is visible; they will return 404 until implemented.
+### ─────────────────────────────────────────────────────────────────────────
+
+### Run document synchronisation
+# POST {{host}}/api/sync/documents
+
+### Get documents for an order
+# GET {{host}}/api/orders/ORD-001/documents
+
+### Get synchronisation history
+# GET {{host}}/api/sync/logs
+
+### Re-send the latest sync log to Google Sheets
+# POST {{host}}/api/sync/logs/latest/send-to-google
